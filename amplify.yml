@@ -1,0 +1,38 @@
+# AWS Amplify Hosting build settings for the MotionLens frontend.
+#
+# The repo is a monorepo: the Next.js app lives in motionlens-web/ (the
+# Python backend at the root is NOT deployed here — it runs on EC2).
+# In the Amplify console set the environment variable
+#   AMPLIFY_MONOREPO_APP_ROOT = motionlens-web
+# so it matches appRoot below.
+#
+# Next.js SSR (compute) hosting: the build output stays in .next.
+# /api/* is proxied to the EC2 backend by the rewrite in
+# motionlens-web/next.config.ts, exactly as on Vercel.
+version: 1
+applications:
+  - appRoot: motionlens-web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            # Amplify's supported Node versions stop at 22 (local dev
+            # runs 24); next 16 needs >= 20.9.
+            - nvm install 22
+            - nvm use 22
+            - node -v
+            - npm ci
+        build:
+          commands:
+            # NEXT_PUBLIC_* values must exist at build time — set them
+            # in the Amplify console (Environment variables); leave
+            # NEXT_PUBLIC_API_BASE_URL empty to use the /api rewrite.
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
