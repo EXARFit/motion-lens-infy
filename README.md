@@ -54,11 +54,11 @@ MotionLens is a **three-module movement assessment platform**:
 2. **Biomechanics** — range-of-motion assessment across **5 joints** (shoulder, neck, knee, hip, ankle) covering **18 movements** in both live-camera and video-upload modes.
 3. **Posture** — static posture screening from front + side photos (head/shoulder/hip tilt, plumb-line shifts, knee alignment).
 
-All without markers, motion-capture suits, or specialised hardware.
+All without markers, motion-capture suits, or dedicated hardware.
 
 ### Hybrid ML architecture
 
-The Next.js production stack runs ML in **two places**, optimising each path for what it needs most:
+The Next.js production stack runs ML in **two places**, tuning each path for what it needs most:
 
 | Mode | Where ML runs | Model | Why |
 |---|---|---|---|
@@ -72,9 +72,9 @@ The Streamlit front-end keeps the legacy server-side flow for everything (single
 ### Front-ends
 
 - **Streamlit** — single-process clinical tool, dark-themed, suitable for lab use.
-- **Next.js + FastAPI** — modern product UX, deployable as a SaaS (Vercel + Hugging Face Spaces).
+- **Next.js + FastAPI** — contemporary product UX, deployable as a SaaS (Vercel + Hugging Face Spaces).
 
-Both UIs call the **identical** Python engine modules. The Next.js frontend additionally has TypeScript ports of the shoulder/neck/knee/hip/ankle math so live mode and biomech upload can run entirely in the browser without a network round-trip.
+Both UIs call the **same** Python engine modules. The Next.js frontend additionally has TypeScript ports of the shoulder/neck/knee/hip/ankle math so live mode and biomech upload can run fully in the browser without a network round-trip.
 
 ---
 
@@ -98,12 +98,12 @@ Both UIs call the **identical** Python engine modules. The Next.js frontend addi
 - Per-leg cycle-detection metadata (accepted / rejected by amplitude / rejected as too long / too short)
 
 #### Robustness layers
-- Direction-aware **pass segmentation** — handles bidirectional walking videos
+- Direction-aware **pass segmentation** — supports bidirectional walking videos
 - Anatomical **pixel-to-meter scaling** from user-supplied height (no on-screen ruler)
 - Per-leg **ankle baseline correction** (auto-detected static stance, running-median fallback)
 - Heel-strike **amplitude floor** — rejects foot-drag events with low heel clearance
 - **Cycle duration filter** — rejects spans outside 0.7×–1.5× the leg's median stride duration
-- Static-stance detection restricted to clean walking windows (prevents turning-point poisoning of the baseline)
+- Static-stance detection restricted to clean walking windows (prevents turning-point contamination of the baseline)
 
 ### Biomechanics — 5-joint range-of-motion (18 movements)
 
@@ -118,8 +118,8 @@ Both UIs call the **identical** Python engine modules. The Next.js frontend addi
 - **Live mode** — continuous-capture webcam tracking via TF.js MoveNet (browser GPU), on-canvas skeleton overlay with EMA-smoothed keypoints, current/peak/frame counters, **PiP camera preview** (toggleable), configurable side selector
 - **Upload mode** — drag-and-drop a recorded clip, **fully client-side** frame-by-frame analysis using `requestVideoFrameCallback` at 4× playback speed (~5-10 sec for a 10-sec video), peak angle + status
 - Reference ranges from AAOS / APTA — `good` ≥ 90 %, `fair` ≥ 75 %, `poor` < 75 % of normal target
-- **Plain-language per-movement instructions** — 5-step numbered guides written for non-clinical users
-- Auto-generated **Assessment Report** with patient header, results table, Plotly bar chart (measured vs normal range), clinical interpretation, educational block, and subtle disclaimer footer
+- **Plain-language per-movement instructions** — 5-step numbered guides written for non-specialist users
+- Auto-generated **Assessment Report** with patient header, results table, Plotly bar chart (measured vs normal range), clinical interpretation, educational block, and a discreet disclaimer footer
 
 ### Posture — static screening from photos
 
