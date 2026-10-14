@@ -1,13 +1,11 @@
 // Thin client for the MotionLens FastAPI backend.
 
-// Empty default => fetch() calls use path-relative URLs (e.g. /api/auth/login)
-// which the Next.js rewrite in next.config.ts proxies to the AWS EC2
-// backend. Override via NEXT_PUBLIC_API_BASE_URL in .env.local when
-// pointing a dev frontend at a remote backend directly (e.g. HF Space
-// or a teammate's tunnelled local backend).
+// The browser calls the EC2 backend directly over HTTPS (no Next.js
+// proxy). NEXT_PUBLIC_API_BASE_URL overrides it, e.g. in .env.local to
+// point a dev frontend at a local backend (http://localhost:8000).
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "";
+  "https://motion-lens-infy-backend.cadabamscare.in";
 
 // ─── DTOs (match api_models.py) ──────────────────────────────────────
 export interface PatientInfoDTO {
