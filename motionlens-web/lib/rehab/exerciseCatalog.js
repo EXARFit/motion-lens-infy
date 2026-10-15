@@ -1348,9 +1348,9 @@ export const REHAB_EXERCISES = [
     mechanic: "rep_count",
     needsSide: false,
     publicBody:
-      "Lying on the back, side-on camera, arm straight up: punch toward the ceiling so the shoulder blade lifts, hold 2 s, let down. A rep is the wrist rising past a personal line above the calibrated rest (85% of the calibrated punch). The movement is small. Counts reps.",
+      "Lying on the back, side-on camera, elbow bent with the fist by the shoulder: punch straight up toward the ceiling so the shoulder blade lifts, then bend back down. A rep is the elbow going from bent to straight and back (only the raised arm is read). Counts reps.",
     patientBody:
-      "Arm up, punch toward the ceiling and hold. Counts reps.",
+      "Fist by the shoulder, punch straight up, bend back. Counts reps.",
     icon: Dumbbell,
     iconTone: "text-amber-500",
     tone: "from-amber-500/15 to-amber-500/5",
@@ -1642,7 +1642,7 @@ export const REHAB_EXERCISES = [
     mechanic: "rep_count",
     needsSide: true,
     publicBody:
-      "Facing the camera, the chosen arm out to the side: straighten the elbow while tilting the head toward the arm, bend it while tilting away. Rep-Count on elbow straightness against a personal line (85% of the calibrated straightening); head away or level with the elbow straight (a tensioner) does not count. Counts reps, one arm.",
+      "Facing the camera, the chosen arm out to the side: straighten the elbow while tilting the head toward the arm, bend it while tilting away. Rep-Count on the elbow going bent to straight (150°) and back; a head clearly tilted away with the elbow straight (a tensioner) does not count. Counts reps, one arm.",
     patientBody:
       "Arm out to the side: elbow straight + head toward it, elbow bent + head away. Counts reps.",
     icon: Activity,
@@ -1658,7 +1658,7 @@ export const REHAB_EXERCISES = [
     mechanic: "rep_count",
     needsSide: true,
     publicBody:
-      "TENSIONER version. Facing the camera, the chosen arm out to the side: bring the hand over the eye like a mask while tilting the head AWAY from the arm, hold 1 s, arm back out. Rep-Count on elbow bend against a personal line (85% of the calibrated bend), with the hand at the face and the head away. Counts reps, one arm.",
+      "TENSIONER version. Facing the camera, the chosen arm out to the side: bring the hand over the eye like a mask while tilting the head AWAY from the arm, hold 1 s, arm back out. Rep-Count on the elbow bending into the mask (90°) and back out; a hand seen away from the face, or a head tilted toward the arm, does not count. Counts reps, one arm.",
     patientBody:
       "Tensioner: hand to the eye like a mask, head away from the arm. Counts reps.",
     icon: Activity,
@@ -1690,9 +1690,9 @@ export const REHAB_EXERCISES = [
     mechanic: "rep_count",
     needsSide: true,
     publicBody:
-      "Standing side-on, arm straight out: flexor stretch (palm forward, fingers pulled back) held 30 s ×3, then extensor stretch (palm down, hand pressed down) held 30 s ×3. Each held stretch is one rep, read from the wrist angle against that part's personal line (85% of the calibrated end). Approximate — four hand points, and the other hand may cover the fingers. Counts holds, one arm.",
+      "Standing side-on, arm straight out, one hand only (active): flexor stretch (palm forward, wrist bent up) held 30 s ×3, then extensor stretch (palm down, wrist bent down) held 30 s ×3. Each held stretch is one rep, read from the wrist angle against that part's personal line (70% of the calibrated end). Approximate — four hand points; the other hand is kept away so it does not cover the fingers. Counts holds, one arm.",
     patientBody:
-      "Wrist stretch: fingers back ×3, then hand down ×3, 30 s each. Counts holds.",
+      "Wrist stretch, one hand: wrist up ×3, then wrist down ×3, 30 s each. Counts holds.",
     icon: Activity,
     iconTone: "text-violet-500",
     tone: "from-violet-500/15 to-violet-500/5",

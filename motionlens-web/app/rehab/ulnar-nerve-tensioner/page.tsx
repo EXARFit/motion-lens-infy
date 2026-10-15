@@ -8,15 +8,15 @@
 // the nerve loaded) — the user's choice; it is labelled as such on the
 // page.
 //
-// Signal: elbow bend (180 − computeElbowInteriorDeg) of the picked arm.
-// Checks (frame reads as "not in the mask"): the hand more than FACE_MAX
+// Signal: elbow bend (180 − computeElbowInteriorDeg) of the picked arm,
+// against fixed lines (mask at LINES.up, back out below LINES.down).
+// Checks block only on clear evidence: the hand SEEN more than FACE_MAX
 // shoulder widths from the same-side eye (computeHandToFaceRatio), or
-// the head not tilted away by AWAY_MIN (computeHeadTiltTowardDeg; this
-// part is skipped when the ears are hidden). Palm direction and wrist
-// extension are not measured.
-//
-// Lines (lib/rehab/personalLine): a share of the calibrated bend.
-// Mechanic: lib/rehab/stretchHold. Reps only.
+// the head tilted TOWARD the arm by AWAY_MIN or more (the slider;
+// computeHeadTiltTowardDeg). A level head, or a hand / face / ears not
+// seen (the hand covers the eye), still counts. Palm direction and
+// wrist extension are not measured. Mechanic: lib/rehab/stretchHold.
+// Reps only.
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -44,27 +44,20 @@ import { LiveModeLayout } from "@/components/live/LiveModeLayout";
 import { computeElbowInteriorDeg, computeHandToFaceRatio, computeHeadTiltTowardDeg } from "@/lib/rehab/poseMetrics";
 import { ULNAR_AWAY_MIN, ULNAR_FACE_MAX } from "@/lib/rehab/calibration/poseGates";
 import { createStretchHold } from "@/lib/rehab/stretchHold";
-import { personalLines } from "@/lib/rehab/personalLine";
 import { DEFAULT_LEVEL_INDEX } from "@/lib/rehab/progressionLadders";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "ulnar-nerve-tensioner";
 const TITLE = "Ulnar Nerve Glide (Tensioner)";
 
-/** Elbow bend lines (0° = arm straight). */
-const LINES = {
-  share: 0.85,
-  min: 60,
-  max: 160,
-  defaultUp: 100,
-  downAboveRest: 20,
-  defaultDown: 30,
-  minGap: 20,
-};
+/** Elbow bend lines, degrees (0 = arm straight): the mask at `up`,
+ *  re-armed once the arm is back out below `down`. */
+const LINES = { up: 90, down: 30 };
 /** Hold in the mask. */
 const HOLD_SEC = 1;
 const SAG = 6;
@@ -101,7 +94,6 @@ export function Inner() {
   const [side, setSide] = useState<Side | null>(null);
   const [angle, setAngle] = useState<number>(0);
   const [fault, setFault] = useState<null | "face" | "head">(null);
-  const [lines, setLines] = useState({ up: LINES.defaultUp, down: LINES.defaultDown });
   const [held, setHeld] = useState(0);
   const [holdPhase, setHoldPhase] = useState<"rest" | "holding" | "done">("rest");
   const [counts, setCounts] = useState({ reps: 0, attempts: 0 });
@@ -120,8 +112,7 @@ export function Inner() {
   }, [seq.side, autoStarted]);
 
   const sessionStartRef = useRef<number>(performance.now());
-  const timerRef = useRef(makeTimer(LINES.defaultUp, LINES.defaultDown));
-  const linesRef = useRef({ up: LINES.defaultUp, down: LINES.defaultDown });
+  const timerRef = useRef(makeTimer(LINES.up, LINES.down));
   const countsRef = useRef({ reps: 0, attempts: 0 });
   const streakRef = useRef(0);
   const bestStreakRef = useRef(0);
@@ -139,12 +130,9 @@ export function Inner() {
     markComplete,
   } = useRehabAutoFlow(side !== null, () => {
     sessionStartRef.current = performance.now();
-    // Personal lines from this calibration (defaults when skipped).
-    const summary = calibSummaryRef.current();
-    const l = personalLines(summary?.rest, summary?.range, LINES);
-    linesRef.current = l;
-    setLines(l);
-    timerRef.current = makeTimer(l.up, l.down);
+    // Fixed lines; calibration checks the setup and is saved with the
+    // session.
+    timerRef.current = makeTimer(LINES.up, LINES.down);
     countsRef.current = { reps: 0, attempts: 0 };
     streakRef.current = 0;
     bestStreakRef.current = 0;
@@ -166,10 +154,10 @@ export function Inner() {
       const face = computeHandToFaceRatio(live, side);
       const tilt = computeHeadTiltTowardDeg(live, side);
       // Only judged once the elbow is bent toward the mask.
-      const bent = bend > linesRef.current.down;
+      const bent = bend > LINES.down;
       const f = !bent ? null
-        : face === null || face > FACE_MAX ? "face"
-          : tilt !== null && tilt > -AWAY_MIN ? "head" : null;
+        : face !== null && face > FACE_MAX ? "face"
+          : tilt !== null && tilt >= AWAY_MIN ? "head" : null;
       setFault(f);
       const a = f ? 0 : bend;
       setAngle(a);
@@ -200,7 +188,7 @@ export function Inner() {
   const buildRehabPayload = useCallback(() => {
     if (!side) return null;
     const { reps, attempts } = countsRef.current;
-    const { up, down } = linesRef.current;
+    const { up, down } = LINES;
     const score = {
       points: reps * POINTS_PER_REP,
       streak: streakRef.current,
@@ -225,7 +213,7 @@ export function Inner() {
         hold_sec: HOLD_SEC,
         up_line_deg: up,
         down_line_deg: down,
-        config: { ...LINES, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS, faceMax: FACE_MAX, awayMinDeg: AWAY_MIN },
+        config: { ...LINES, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS, faceMax: FACE_MAX, towardBlockDeg: AWAY_MIN },
         level_index: DEFAULT_LEVEL_INDEX,
       },
       observations: { interpretation },
@@ -234,7 +222,6 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = Math.min(100, (held / HOLD_SEC) * 100);
   const holdHint = fault === "face"
     ? "Hand over your eye like a mask"
     : fault === "head"
@@ -294,13 +281,10 @@ export function Inner() {
                 <RehabCameraShell onFrame={handleFrame} autoStart hideControls>
                   <div className="absolute right-3 top-3 rounded-lg border border-white/15 bg-black/70 px-3 py-2 backdrop-blur">
                     <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">
-                      {side === "left" ? "L" : "R"} elbow bend
+                      {side === "left" ? "L" : "R"} arm
                     </p>
-                    <p className="tabular text-2xl font-semibold text-white">
-                      {angle.toFixed(0)}°
-                    </p>
-                    <p className="tabular text-[11px] text-zinc-300">
-                      line {lines.up.toFixed(0)}°
+                    <p className="text-2xl font-semibold text-white">
+                      {angle >= LINES.up ? "Mask" : "Out"}
                     </p>
                   </div>
                   {sessionPhase === "calibrate" && calibration.state && (
@@ -348,12 +332,7 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">
@@ -392,11 +371,10 @@ export function Inner() {
               </li>
               <li>
                 Calibration: arm out straight; then the mask with the head
-                away, and hold — that sets your personal line (
-                {Math.round(LINES.share * 100)}% of the elbow bend). Live:
-                mask past the line, hand at the eye, head away, hold{" "}
-                {HOLD_SEC} s, arm back out — one rep. This is the TENSIONER
-                (head away); head toward the arm would be the slider.
+                away, and hold. Live: the mask (elbow bent, hand at the eye,
+                head away), hold {HOLD_SEC} s, arm back out — one rep. This
+                is the TENSIONER (head away); a head tilted toward the arm
+                (the slider) does not count.
               </li>
               <li>Target: {TARGET_REPS} reps with the chosen arm.</li>
             </ul>

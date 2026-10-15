@@ -55,6 +55,7 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "self-snag";
 const TITLE = "Self-SNAG (Towel)";
@@ -219,7 +220,6 @@ export function Inner() {
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
   const toward = side === "right" ? -rotation : rotation;
-  const holdPct = Math.min(100, (held / SNAG_CONFIG.holdSec) * 100);
   const holdHint =
     holdPhase === "holding"
       ? `Hold… ${Math.max(0, SNAG_CONFIG.holdSec - held).toFixed(0)} s`
@@ -326,12 +326,7 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">

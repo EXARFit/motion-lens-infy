@@ -123,7 +123,7 @@ export type CalibSignal =
   | "ear_hip_elev"
   /** Wrist flexion/extension, side-on, signed: + up (extension) / − down (computeWristFlexExtDeg). */
   | "wrist_flex_ext"
-  /** Pronation/supination, front, forearm toward the camera: pinky→thumb line from up, + supination (computeForearmRotationDialDeg). */
+  /** Pronation/supination, front, forearm toward the camera: pinky→index line from up, + supination (computeForearmRotationDialDeg). */
   | "forearm_dial"
   /** Chin tuck: shoulder → ear line from vertical, side seen better (computeChinTuck). */
   | "chin_tuck_forward"
@@ -137,8 +137,8 @@ export type CalibSignal =
   | "hip_mid_y_norm"
   /** Band IR: wrist swung in toward the midline, % of the upper arm, front (computeForearmInwardPct). */
   | "forearm_inward"
-  /** Serratus punch: wrist above the hip line, % of the trunk, side-on supine (computePunchReachPct). */
-  | "punch_reach"
+  /** Serratus punch: elbow angle of the raised arm, side-on supine (computePunchElbowDeg). */
+  | "punch_elbow"
   /** Ball toss: wrist in front of the shoulder, % of the upper arm, side-on (computeWristReachPct). */
   | "wrist_reach"
   /** Side-lying ER: forearm angle from straight down, from the front (computeForearmFromDownDeg). */
@@ -521,10 +521,10 @@ export const CALIBRATION_SPECS: Record<string, CalibrationSpec> = {
     signal: "wrist_flex_ext", signalSide: "working", unit: "deg",
     holds: [
       rest("Arm straight out in front, wrist straight, fingers relaxed."),
-      { id: "range_left", title: "Flexor stretch", instruction: "Palm forward, pull the fingers back toward you with the other hand, and hold." },
+      { id: "range_left", title: "Flexor stretch", instruction: "Palm forward, bend the wrist UP as far as it goes — this hand only — and hold." },
       {
         id: "range_right", title: "Extensor stretch",
-        instruction: "Now palm down, press the hand down toward you with the other hand, and hold.",
+        instruction: "Now palm down, bend the wrist DOWN as far as it goes — this hand only — and hold.",
         otherSideMessage: "Now bend the wrist DOWN",
       },
     ],
@@ -533,11 +533,11 @@ export const CALIBRATION_SPECS: Record<string, CalibrationSpec> = {
   "pronation-supination": {
     slug: "pronation-supination",
     view: "frontal", posture: "seated", sided: true,
-    parts: [W("WRIST"), W("THUMB"), W("PINKY"), B("SHOULDER")],
+    parts: [W("WRIST"), W("INDEX"), W("PINKY"), B("SHOULDER")],
     scaleRef: "shoulderWidth",
     signal: "forearm_dial", signalSide: "working", unit: "deg",
     holds: [
-      rest("Face the camera, elbow bent at your side, forearm pointing at the camera, thumb up."),
+      rest("Face the camera, elbow bent at your side, forearm pointing at the camera, thumb up, fingers relaxed and slightly spread."),
       { id: "range_left", title: "Palm up", instruction: "Turn the palm UP as far as you can, and hold." },
       {
         id: "range_right", title: "Palm down",
@@ -545,7 +545,7 @@ export const CALIBRATION_SPECS: Record<string, CalibrationSpec> = {
         otherSideMessage: "Now turn the palm the other way",
       },
     ],
-    note: "Rehab pronation/supination — the most approximate wrist exercise: the hand read as a clock hand (pinky → thumb). Two-sided holds filed by sign: range_right = supination (+), range_left = pronation (−). No elbow-tucked check (user's choice).",
+    note: "Rehab pronation/supination — the most approximate wrist exercise: the hand read as a clock hand (pinky → index; the thumb hides palm down). Two-sided holds filed by sign: range_right = supination (+), range_left = pronation (−). No elbow-tucked check (user's choice).",
   },
   "wrist-curls": {
     slug: "wrist-curls",
@@ -983,16 +983,16 @@ export const CALIBRATION_SPECS: Record<string, CalibrationSpec> = {
   "serratus-punch": {
     slug: "serratus-punch",
     view: "side", posture: "supine", sided: false,
-    parts: [A("SHOULDER"), A("HIP"), A("WRIST")],
+    parts: [A("SHOULDER"), A("ELBOW"), A("WRIST")],
     scaleRef: "torso",
-    signal: "punch_reach", signalSide: "none", unit: "ratio",
+    signal: "punch_elbow", signalSide: "none", unit: "deg",
     rangeDirection: "higher",
-    wrongWayMessage: "Punch up toward the ceiling — lift the shoulder blade",
+    wrongWayMessage: "Punch straight up — straighten the elbow",
     holds: [
-      rest("Lie on your back, side-on to the camera, arm straight up toward the ceiling, shoulder relaxed."),
-      range("Punch up — lift the shoulder blade off the floor, elbow straight — and hold."),
+      rest("Lie on your back, side-on to the camera, elbow bent, fist by your shoulder."),
+      range("Punch straight up toward the ceiling — elbow straight, shoulder blade lifting — and hold."),
     ],
-    note: "Rehab serratus punch (supine). Wrist above the hip line, % of the trunk; the page counts the rise from the calibrated rest. A weaker exercise: the movement is a few points only.",
+    note: "Rehab serratus punch (supine), counted as a straight punch: elbow bent → straight (≥150°) → bent is one rep. Only an arm with the wrist above the shoulder is read, so the arm on the floor is ignored. The shoulder-blade lift itself is not measured.",
   },
   "ball-toss": {
     slug: "ball-toss",

@@ -2,14 +2,16 @@
 // W2 — Wrist Flexor & Extensor Stretch.
 //
 // Patient stands side-on, the picked arm straight out in front, nearest
-// the camera. Part 1 — FLEXOR stretch: palm forward, the other hand pulls
-// the fingers back (wrist UP), held HOLD_SEC, PER_PART times. Part 2 —
-// EXTENSOR stretch: palm down, the other hand presses the hand down
-// (wrist DOWN), held HOLD_SEC, PER_PART times.
+// the camera. Part 1 — FLEXOR stretch: palm forward, the wrist bent UP
+// as far as it goes, held HOLD_SEC, PER_PART times. Part 2 — EXTENSOR
+// stretch: palm down, the wrist bent DOWN as far as it goes, held
+// HOLD_SEC, PER_PART times. Active, one hand only: the other hand
+// pulling or pressing covers the fingers and the hand points jump to
+// it, so it is left out (user's choice).
 //
 // Signal: signed wrist angle (computeWristFlexExtDeg, lib/rehab/
-// poseMetrics; + up / − down) — approximate, four hand points; the
-// other hand may cover the fingers. Each part has its own personal line
+// poseMetrics; + up / − down) — approximate, four hand points. Each
+// part has its own personal line
 // (lib/rehab/personalLine) from the calibrated up / down ends; the timer
 // reads the angle in that part's direction. Mechanic: lib/rehab/
 // stretchHold. No elbow-straight check (user's choice). Reps only.
@@ -46,13 +48,15 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "wrist-flexor-extensor-stretch";
 const TITLE = "Wrist Flexor & Extensor Stretch";
 
 /** Stretch lines, degrees of wrist bend in the part's direction. */
 const LINES = {
-  share: 0.85,
+  // A stretch, not a max effort: 70% of the calibrated end.
+  share: 0.7,
   min: 15,
   max: 80,
   defaultUp: 40,
@@ -61,8 +65,10 @@ const LINES = {
   minGap: 10,
 };
 const HOLD_SEC = 30;
-const SAG = 3;
-const GRACE_MS = 1000;
+/** The angle may ease this much and still be held: the hand points
+ *  jitter over a 30 s hold. */
+const SAG = 10;
+const GRACE_MS = 2500;
 type Part = "flexor" | "extensor";
 
 type Side = "left" | "right";
@@ -242,14 +248,13 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = Math.min(100, (held / HOLD_SEC) * 100);
   const holdHint = holdPhase === "holding"
     ? `Hold… ${Math.max(0, HOLD_SEC - held).toFixed(0)} s`
     : holdPhase === "done"
       ? "Good — let go and relax the wrist"
       : part === "flexor"
-        ? `FLEXOR: palm forward, pull the fingers back — ${lines.up.toFixed(0)}°`
-        : `EXTENSOR: palm down, press the hand down — ${lines.up.toFixed(0)}°`;
+        ? "FLEXOR: palm forward, bend the wrist UP"
+        : "EXTENSOR: palm down, bend the wrist DOWN";
 
   return (
     <>
@@ -265,10 +270,11 @@ export function Inner() {
               <p className="mt-5 text-lg text-muted">
                 Stand side-on, the chosen arm straight out in front, nearest
                 the camera. First the <strong>flexor stretch</strong>: palm
-                forward, pull the fingers back with the other hand. Then the{" "}
-                <strong>extensor stretch</strong>: palm down, press the hand
-                down. Hold each {HOLD_SEC} s, {PER_PART} times. Hold the
-                fingertips from above so the camera side stays clear.
+                forward, bend the wrist UP as far as it goes. Then the{" "}
+                <strong>extensor stretch</strong>: palm down, bend the wrist
+                DOWN as far as it goes. Hold each {HOLD_SEC} s,{" "}
+                {PER_PART} times. Use this hand only — keep the other hand
+                away.
               </p>
               {isDoctorFlow && patient && (
                 <p className="mt-3 text-xs text-muted">
@@ -354,12 +360,7 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">
@@ -393,9 +394,8 @@ export function Inner() {
                 chosen arm nearest the camera</strong>.
               </li>
               <li>
-                Shoulder to fingertips in frame and large; good light. Hold
-                the fingertips from above — do not cover the hand on the
-                camera side.
+                Shoulder to fingertips in frame and large; good light. Keep
+                the other hand away from the working hand.
               </li>
               <li>
                 Calibration: wrist straight; then the flexor stretch (wrist

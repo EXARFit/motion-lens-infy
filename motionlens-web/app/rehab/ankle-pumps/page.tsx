@@ -47,6 +47,7 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepsVerticalBar } from "@/components/rehab/RepsVerticalBar";
 
 const SLUG = "ankle-pumps";
 const TITLE = "Ankle Pumps";
@@ -195,7 +196,6 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = bar === null ? 50 : bar * 100;
   const holdHint = moved === "knee"
     ? "Keep the knee still — move only the ankle"
     : moved === "lift"
@@ -300,19 +300,7 @@ export function Inner() {
                   )}
                   {(sessionPhase === "live" || sessionPhase === "complete") && (
                     <div className="rounded-card border border-border bg-surface p-4">
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
-                        Reps
-                      </p>
-                      <p className="tabular mt-1 text-4xl font-semibold">
-                        {counts.reps}
-                        <span className="text-lg text-muted"> / {TARGET_REPS}</span>
-                      </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepsVerticalBar reps={counts.reps} target={TARGET_REPS} fraction={bar} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">

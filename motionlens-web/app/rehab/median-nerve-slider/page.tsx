@@ -7,15 +7,15 @@
 // together, so the nerve glides instead of being stretched. Each
 // straighten-and-bend is a rep.
 //
-// Signal: elbow straightness = 180 − elbow bend (computeElbowInteriorDeg,
-// lib/rehab/poseMetrics) of the picked arm. Head check: at the straight
-// end the head must tilt toward the arm by TOWARD_MIN
-// (computeHeadTiltTowardDeg) — head away (a tensioner) or level reads as
-// "not straightened". Wrist extension is not measured; no arm-height
-// check (user's choice). Radial slider not built.
-//
-// Lines (lib/rehab/personalLine): from the calibration in straightness
-// terms. Mechanic: lib/rehab/stretchHold with a short pause. Reps only.
+// Signal: the elbow interior angle (computeElbowInteriorDeg,
+// lib/rehab/poseMetrics) of the picked arm, against fixed lines:
+// straight at LINES.up, bent again below LINES.down. Head check
+// (computeHeadTiltTowardDeg): only a head clearly tilted AWAY from the
+// arm (a tensioner) blocks the rep; a level head or ears not seen (the
+// raised arm often hides the near ear) still counts. Wrist extension
+// is not measured; no arm-height check (user's choice). Radial slider
+// not built. Mechanic: lib/rehab/stretchHold with a short pause. Reps
+// only.
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -43,32 +43,25 @@ import { LiveModeLayout } from "@/components/live/LiveModeLayout";
 import { computeElbowInteriorDeg, computeHeadTiltTowardDeg } from "@/lib/rehab/poseMetrics";
 import { MEDIAN_TOWARD_MIN } from "@/lib/rehab/calibration/poseGates";
 import { createStretchHold } from "@/lib/rehab/stretchHold";
-import { personalLines } from "@/lib/rehab/personalLine";
 import { DEFAULT_LEVEL_INDEX } from "@/lib/rehab/progressionLadders";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "median-nerve-slider";
 const TITLE = "Median Nerve Slider";
 
-/** Elbow straightness lines (180° = straight). */
-const LINES = {
-  share: 0.85,
-  min: 120,
-  max: 175,
-  defaultUp: 155,
-  downAboveRest: 15,
-  defaultDown: 115,
-  minGap: 20,
-};
+/** Elbow interior angle lines, degrees (180 = straight): straight at
+ *  `up`, re-armed once bent below `down`. */
+const LINES = { up: 150, down: 110 };
 const HOLD_SEC = 0.5;
 const SAG = 8;
 const GRACE_MS = 300;
-/** Head tilt toward the arm needed at the straight end (else tensioner
- *  or level). */
+/** A head tilted AWAY from the arm by this much at the straight end is
+ *  a tensioner, not counted. */
 const TOWARD_MIN = MEDIAN_TOWARD_MIN;
 
 type Side = "left" | "right";
@@ -98,7 +91,6 @@ export function Inner() {
   const [side, setSide] = useState<Side | null>(null);
   const [angle, setAngle] = useState<number>(0);
   const [headWrong, setHeadWrong] = useState(false);
-  const [lines, setLines] = useState({ up: LINES.defaultUp, down: LINES.defaultDown });
   const [held, setHeld] = useState(0);
   const [holdPhase, setHoldPhase] = useState<"rest" | "holding" | "done">("rest");
   const [counts, setCounts] = useState({ reps: 0, attempts: 0 });
@@ -117,8 +109,7 @@ export function Inner() {
   }, [seq.side, autoStarted]);
 
   const sessionStartRef = useRef<number>(performance.now());
-  const timerRef = useRef(makeTimer(LINES.defaultUp, LINES.defaultDown));
-  const linesRef = useRef({ up: LINES.defaultUp, down: LINES.defaultDown });
+  const timerRef = useRef(makeTimer(LINES.up, LINES.down));
   const countsRef = useRef({ reps: 0, attempts: 0 });
   const streakRef = useRef(0);
   const bestStreakRef = useRef(0);
@@ -136,14 +127,9 @@ export function Inner() {
     markComplete,
   } = useRehabAutoFlow(side !== null, () => {
     sessionStartRef.current = performance.now();
-    // Personal lines from this calibration (defaults when skipped).
-    const summary = calibSummaryRef.current();
-    // Calibration is in elbow bend; the lines are in straightness.
-    const toStraight = (v: unknown) => (typeof v === "number" ? 180 - v : v);
-    const l = personalLines(toStraight(summary?.rest), toStraight(summary?.range), LINES);
-    linesRef.current = l;
-    setLines(l);
-    timerRef.current = makeTimer(l.up, l.down);
+    // Fixed lines; calibration checks the setup and is saved with the
+    // session.
+    timerRef.current = makeTimer(LINES.up, LINES.down);
     countsRef.current = { reps: 0, attempts: 0 };
     streakRef.current = 0;
     bestStreakRef.current = 0;
@@ -163,9 +149,9 @@ export function Inner() {
       if (interior === null) return;
       const straight = interior;
       const tilt = computeHeadTiltTowardDeg(live, side);
-      // Elbow straight without the head tilted toward the arm: a
-      // tensioner (head away) or no slide — not counted.
-      const wrong = straight > linesRef.current.down && (tilt === null || tilt < TOWARD_MIN);
+      // Elbow straight with the head clearly tilted AWAY from the arm: a
+      // tensioner, not counted. Level, or ears not seen, still counts.
+      const wrong = straight > LINES.down && tilt !== null && tilt <= -TOWARD_MIN;
       setHeadWrong(wrong);
       const a = wrong ? 0 : straight;
       setAngle(a);
@@ -196,7 +182,7 @@ export function Inner() {
   const buildRehabPayload = useCallback(() => {
     if (!side) return null;
     const { reps, attempts } = countsRef.current;
-    const { up, down } = linesRef.current;
+    const { up, down } = LINES;
     const score = {
       points: reps * POINTS_PER_REP,
       streak: streakRef.current,
@@ -221,7 +207,7 @@ export function Inner() {
         hold_sec: HOLD_SEC,
         up_line_deg: up,
         down_line_deg: down,
-        config: { ...LINES, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS, towardMinDeg: TOWARD_MIN },
+        config: { ...LINES, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS, awayBlockDeg: TOWARD_MIN },
         level_index: DEFAULT_LEVEL_INDEX,
       },
       observations: { interpretation },
@@ -230,7 +216,6 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = Math.min(100, (held / HOLD_SEC) * 100);
   const holdHint = headWrong
     ? "Tilt your head TOWARD the arm as it straightens"
     : holdPhase === "holding"
@@ -287,13 +272,10 @@ export function Inner() {
                 <RehabCameraShell onFrame={handleFrame} autoStart hideControls>
                   <div className="absolute right-3 top-3 rounded-lg border border-white/15 bg-black/70 px-3 py-2 backdrop-blur">
                     <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">
-                      {side === "left" ? "L" : "R"} elbow straightness
+                      {side === "left" ? "L" : "R"} elbow
                     </p>
-                    <p className="tabular text-2xl font-semibold text-white">
-                      {angle.toFixed(0)}°
-                    </p>
-                    <p className="tabular text-[11px] text-zinc-300">
-                      line {lines.up.toFixed(0)}°
+                    <p className="text-2xl font-semibold text-white">
+                      {angle >= LINES.up ? "Straight" : "Bent"}
                     </p>
                   </div>
                   {sessionPhase === "calibrate" && calibration.state && (
@@ -341,12 +323,7 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">
@@ -384,12 +361,10 @@ export function Inner() {
               </li>
               <li>
                 Calibration: arm out, elbow bent, head away; then straighten
-                the elbow with the head tilted toward the arm, and hold —
-                that sets your personal line (
-                {Math.round(LINES.share * 100)}% of it). Live: straighten
-                past the line with the head toward the arm, bend back — one
-                rep. Head away (or level) with the elbow straight does not
-                count.
+                the elbow with the head tilted toward the arm, and hold.
+                Live: elbow bent, straightened with the head toward the
+                arm, bent again — one rep. A head tilted away from the arm
+                with the elbow straight does not count.
               </li>
               <li>Target: {TARGET_REPS} reps with the chosen arm.</li>
             </ul>

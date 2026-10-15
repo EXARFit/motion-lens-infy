@@ -271,11 +271,12 @@ export function assessReadiness(
           : "Turn so your side faces the camera";
     }
   }
-  // Back view: wide is not enough, the patient must face AWAY. Two
-  // cues, either of which reads as "facing": the face is plainly seen,
-  // and the shoulders are in front-on order (raw video, not mirrored:
-  // facing the camera puts the LEFT shoulder at the larger x). A back
-  // view passes only when neither says facing.
+  // Back view: wide is not enough, the patient must face AWAY. The
+  // shoulder order decides (raw video, not mirrored: facing the camera
+  // puts the LEFT shoulder at the larger x). The face score is only a
+  // fallback when the shoulders can't be ordered: from behind MoveNet
+  // still places the nose and eyes on the back of the head, often at
+  // ~0.97, so on its own it blocked patients who had turned around.
   let faceScore: number | null = null;
   let shoulderOrder: "front" | "back" | null = null;
   if (spec.view === "back" && viewOk) {
@@ -284,7 +285,10 @@ export function assessReadiness(
     if (present(kp, LS) && present(kp, RS)) {
       shoulderOrder = kp[LS].x > kp[RS].x ? "front" : "back";
     }
-    if (faceScore >= BACK_VIEW_FACE_MAX || shoulderOrder === "front") {
+    const facing = shoulderOrder !== null
+      ? shoulderOrder === "front"
+      : faceScore >= BACK_VIEW_FACE_MAX;
+    if (facing) {
       viewOk = false;
       viewMsg = "Turn around — your back should face the camera";
     }

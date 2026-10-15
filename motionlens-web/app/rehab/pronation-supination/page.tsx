@@ -6,10 +6,10 @@
 // (supination) and palm down (pronation).
 //
 // Signal: the hand read as a clock hand (computeForearmRotationDialDeg,
-// lib/rehab/poseMetrics) — pinky → thumb line from straight up; + thumb
-// out (supination) / − thumb in (pronation). The most approximate of
-// the wrist exercises: thumb and pinky are small points and can hide
-// behind each other mid-turn.
+// lib/rehab/poseMetrics) — pinky → index line from straight up; + index
+// side out (supination) / − in (pronation). The index, not the thumb:
+// palm down the thumb tucks under the hand and drops out of view. The
+// most approximate of the wrist exercises: small hand points.
 // Calibration: rest (thumb up), then palm up and palm down (two-sided
 // holds, filed by sign: range_right = supination, range_left =
 // pronation).
@@ -48,6 +48,7 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepsVerticalBar } from "@/components/rehab/RepsVerticalBar";
 
 const SLUG = "pronation-supination";
 const TITLE = "Pronation / Supination";
@@ -181,7 +182,6 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = bar === null ? 50 : bar * 100;
   const holdHint = bar !== null && bar > 0.5
     ? "Now turn the palm DOWN"
     : "Turn the palm UP";
@@ -280,19 +280,7 @@ export function Inner() {
                   )}
                   {(sessionPhase === "live" || sessionPhase === "complete") && (
                     <div className="rounded-card border border-border bg-surface p-4">
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
-                        Reps
-                      </p>
-                      <p className="tabular mt-1 text-4xl font-semibold">
-                        {counts.reps}
-                        <span className="text-lg text-muted"> / {TARGET_REPS}</span>
-                      </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepsVerticalBar reps={counts.reps} target={TARGET_REPS} fraction={bar} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                     </div>
                   )}
@@ -327,8 +315,8 @@ export function Inner() {
               <li>
                 Calibration: thumb up; then palm up and hold; then palm down
                 and hold — these are your two ends. Live: palm up and palm
-                down is one rep. The reading is approximate (thumb and pinky
-                points).
+                down is one rep. The reading is approximate (index and pinky
+                points) — keep the fingers relaxed and slightly spread.
               </li>
               <li>Target: {TARGET_REPS} reps with the chosen arm.</li>
             </ul>

@@ -42,6 +42,7 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepsVerticalBar } from "@/components/rehab/RepsVerticalBar";
 
 const SLUG = "stationary-cycling";
 const TITLE = "Stationary Cycling";
@@ -183,7 +184,6 @@ export function Inner() {
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
   const sideWord = side === "left" ? "Left" : "Right";
-  const holdPct = bar === null ? 50 : bar * 100;
   const holdHint = `Keep pedalling — ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")} left`;
 
   return (
@@ -279,18 +279,7 @@ export function Inner() {
                   )}
                   {(sessionPhase === "live" || sessionPhase === "complete") && (
                     <div className="rounded-card border border-border bg-surface p-4">
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
-                        Revolutions
-                      </p>
-                      <p className="tabular mt-1 text-4xl font-semibold">
-                        {counts.reps}
-                      </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepsVerticalBar reps={counts.reps} fraction={bar} label="Revolutions" />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                     </div>
                   )}

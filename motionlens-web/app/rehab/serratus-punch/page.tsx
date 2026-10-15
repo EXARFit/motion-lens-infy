@@ -1,18 +1,17 @@
 "use client";
 // S24 — Serratus Punch (supine).
 //
-// Patient lies on the back, side-on to the camera, one arm straight up
-// toward the ceiling. Punches up — the shoulder blade lifts off the
-// floor, the elbow stays straight — holds HOLD_SEC, lets it back down.
-// No side pick (the arm nearer the camera is read).
+// Patient lies on the back, side-on to the camera, elbow bent with the
+// fist by the shoulder, and punches straight up toward the ceiling,
+// reaching through so the shoulder blade lifts, then bends back down.
+// No side pick.
 //
-// Signal: the wrist's height above the hip line, % of the trunk
-// (computePunchReachPct, lib/rehab/poseMetrics). The page counts the
-// RISE from the calibrated rest. A weaker exercise: the movement is only
-// a few points.
-//
-// Lines (lib/rehab/personalLine): a share of the calibrated rise.
-// Mechanic: lib/rehab/stretchHold. Reps only.
+// Counted as a straight punch. Signal: the elbow angle of the raised
+// arm (computePunchElbowDeg, lib/rehab/poseMetrics; only an arm with the
+// wrist above the shoulder is read, so the arm on the floor is ignored).
+// Elbow straight (>= PUNCH.straight) -> one rep; it re-arms once the
+// elbow bends back below PUNCH.bent. The shoulder-blade lift is not
+// measured. Mechanic: lib/rehab/stretchHold with a brief hold. Reps only.
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -37,45 +36,38 @@ import { useRehabAutoFlow } from "@/lib/rehab/useAutoFlow";
 import { useRehabCalibration } from "@/lib/rehab/calibration/useRehabCalibration";
 import { RehabCalibrationOverlay } from "@/components/rehab/RehabCalibrationOverlay";
 import { LiveModeLayout } from "@/components/live/LiveModeLayout";
-import { computePunchReachPct } from "@/lib/rehab/poseMetrics";
+import { computePunchElbowDeg } from "@/lib/rehab/poseMetrics";
 import { createStretchHold } from "@/lib/rehab/stretchHold";
-import { personalLines } from "@/lib/rehab/personalLine";
 import { DEFAULT_LEVEL_INDEX } from "@/lib/rehab/progressionLadders";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "serratus-punch";
 const TITLE = "Serratus Punch";
 
-/** Punch lines, points the wrist rises above the calibrated rest. */
-const LINES = {
-  share: 0.85,
-  min: 2,
-  max: 30,
-  defaultUp: 4,
-  downAboveRest: 3,
-  defaultDown: 3,
-  minGap: 4,
-};
-/** Hold the punch. */
-const HOLD_SEC = 2;
-/** The drop may ease this much and still be held. */
-const SAG = 2;
-const GRACE_MS = 500;
+/** Elbow interior angle, degrees: at or past `straight` the punch
+ *  counts; it re-arms once the elbow bends back below `bent`. */
+const PUNCH = { straight: 150, bent: 110 };
+/** A brief moment straight, so a frame of noise is not a rep. */
+const HOLD_SEC = 0.3;
+/** The angle may ease this much while straight. */
+const SAG = 5;
+const GRACE_MS = 300;
 /** Punches in the set. */
 const TARGET_REPS = 10;
 const POINTS_PER_REP = 6;
-/** EMA weight for the head reading. */
+/** EMA weight for the elbow reading. */
 const SMOOTH = 0.4;
 
-function makeTimer(depth: number, stand: number) {
+function makeTimer() {
   return createStretchHold({
-    enter: depth,
-    breakAt: depth - SAG,
-    release: stand,
+    enter: PUNCH.straight,
+    breakAt: PUNCH.straight - SAG,
+    release: PUNCH.bent,
     holdSec: HOLD_SEC,
     graceMs: GRACE_MS,
   });
@@ -91,9 +83,7 @@ export default function SerratusPunchPage() {
 
 export function Inner() {
   const [phase, setPhase] = useState<"ready" | "active">("ready");
-  const [drop, setDrop] = useState<number>(0);
-  const [lines, setLines] = useState({ up: LINES.defaultUp, down: LINES.defaultDown });
-  const [held, setHeld] = useState(0);
+  const [straight, setStraight] = useState(false);
   const [holdPhase, setHoldPhase] = useState<"rest" | "holding" | "done">("rest");
   const [counts, setCounts] = useState({ reps: 0, attempts: 0 });
 
@@ -110,10 +100,7 @@ export function Inner() {
 
   const sessionStartRef = useRef<number>(performance.now());
   const smoothRef = useRef<number | null>(null);
-  /** Calibrated rest; the punch is measured from it. */
-  const restRef = useRef<number | null>(null);
-  const timerRef = useRef(makeTimer(LINES.defaultUp, LINES.defaultDown));
-  const linesRef = useRef({ up: LINES.defaultUp, down: LINES.defaultDown });
+  const timerRef = useRef(makeTimer());
   const countsRef = useRef({ reps: 0, attempts: 0 });
   const streakRef = useRef(0);
   const bestStreakRef = useRef(0);
@@ -129,21 +116,13 @@ export function Inner() {
     markComplete,
   } = useRehabAutoFlow(phase === "active", () => {
     sessionStartRef.current = performance.now();
-    // Personal lines from this calibration (defaults when skipped).
-    // Calibration is in wrist height; the lines are in the rise.
-    const summary = calibSummaryRef.current();
-    const rest = typeof summary?.rest === "number" ? summary.rest : null;
-    const range = typeof summary?.range === "number" ? summary.range : null;
-    restRef.current = rest;
-    const l = personalLines(rest === null ? undefined : 0, rest !== null && range !== null ? range - rest : undefined, LINES);
-    linesRef.current = l;
-    setLines(l);
-    timerRef.current = makeTimer(l.up, l.down);
+    // Fixed elbow lines (straight / bent); calibration only checks the
+    // setup and is saved with the session.
+    timerRef.current = makeTimer();
     countsRef.current = { reps: 0, attempts: 0 };
     streakRef.current = 0;
     bestStreakRef.current = 0;
     setCounts(countsRef.current);
-    setHeld(0);
     setHoldPhase("rest");
   }, seq.countdownSec, calibration);
   const phaseRef = useRef(sessionPhase);
@@ -153,20 +132,16 @@ export function Inner() {
     (kp: Keypoint[], video: HTMLVideoElement) => {
       calibration.feed(kp as unknown as LiveKeypoint[], video);
       if (phase !== "active") return;
-      const m = computePunchReachPct(kp as unknown as LiveKeypoint[]);
+      const m = computePunchElbowDeg(kp as unknown as LiveKeypoint[]);
       if (m === null) return;
       const prev = smoothRef.current;
       const s = prev === null ? m : prev * (1 - SMOOTH) + m * SMOOTH;
       smoothRef.current = s;
-      // No calibrated rest: the first reading is the rest.
-      if (restRef.current === null) restRef.current = s;
-      const d = s - restRef.current;
-      setDrop(d);
+      setStraight(s >= PUNCH.straight);
       if (phaseRef.current !== "live") return;
-      const l = d;
       const now = performance.now();
       const timer = timerRef.current;
-      const ev = timer.step(l, now);
+      const ev = timer.step(s, now);
       if (ev) {
         const c = { ...countsRef.current };
         if (ev.type === "rep") {
@@ -181,7 +156,6 @@ export function Inner() {
         setCounts(c);
         if (c.reps >= TARGET_REPS) markComplete();
       }
-      setHeld(timer.heldSec(now));
       setHoldPhase(timer.phase());
     },
     [phase, markComplete],
@@ -196,8 +170,8 @@ export function Inner() {
       bestStreak: bestStreakRef.current,
     };
     const interpretation = reps > 0
-      ? `${reps} of ${TARGET_REPS} serratus punches, each held ${HOLD_SEC} s.`
-      : "No serratus punches held long enough.";
+      ? `${reps} of ${TARGET_REPS} serratus punches (elbow bent to straight).`
+      : "No serratus punches counted.";
     return {
       module: "rehab" as const,
       movement: SLUG,
@@ -211,7 +185,7 @@ export function Inner() {
         mechanic_state: { reps, goodReps: reps, brokenHolds: attempts },
         target_reps: TARGET_REPS,
         hold_sec: HOLD_SEC,
-        config: { ...LINES, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS },
+        config: { ...PUNCH, holdSec: HOLD_SEC, sag: SAG, graceMs: GRACE_MS },
         level_index: DEFAULT_LEVEL_INDEX,
       },
       observations: { interpretation },
@@ -219,12 +193,9 @@ export function Inner() {
   }, [phase]);
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
-  const holdPct = Math.min(100, (held / HOLD_SEC) * 100);
-  const holdHint = holdPhase === "holding"
-        ? `Hold… ${Math.max(0, HOLD_SEC - held).toFixed(0)} s`
-        : holdPhase === "done"
-          ? "Good — let the shoulder back down"
-          : "Punch up — lift the shoulder blade";
+  const holdHint = holdPhase === "done"
+    ? "Good — bend the elbow back to the shoulder"
+    : "Punch straight up — elbow straight";
 
   return (
     <>
@@ -238,10 +209,10 @@ export function Inner() {
                 {TITLE}<span className="text-accent">.</span>
               </h1>
               <p className="mt-5 text-lg text-muted">
-                Lie on your back, side-on to the camera, one arm straight up
-                toward the ceiling. Punch up so the shoulder blade lifts off
-                the floor, elbow straight, hold {HOLD_SEC} seconds, let it
-                back down. Goal {TARGET_REPS} reps.
+                Lie on your back, side-on to the camera, elbow bent with the
+                fist by your shoulder. Punch straight up toward the ceiling,
+                reaching through so the shoulder blade lifts, then bend the
+                elbow back down. Goal {TARGET_REPS} reps.
               </p>
               {isDoctorFlow && patient && (
                 <p className="mt-3 text-xs text-muted">
@@ -273,13 +244,10 @@ export function Inner() {
                 <RehabCameraShell onFrame={handleFrame} autoStart hideControls>
                   <div className="absolute right-3 top-3 rounded-lg border border-white/15 bg-black/70 px-3 py-2 backdrop-blur">
                     <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">
-                      Punch
+                      Elbow
                     </p>
-                    <p className="tabular text-2xl font-semibold text-white">
-                      {drop.toFixed(0)}
-                    </p>
-                    <p className="tabular text-[11px] text-zinc-300">
-                      line {lines.up.toFixed(0)}°
+                    <p className="text-2xl font-semibold text-white">
+                      {straight ? "Straight" : "Bent"}
                     </p>
                   </div>
                   {sessionPhase === "calibrate" && calibration.state && (
@@ -307,7 +275,7 @@ export function Inner() {
                     <AutoFlowCountdownCard
                       countdown={countdown}
                       onSkip={skipCountdown}
-                      hint="On your back, arm straight up, shoulder relaxed."
+                      hint="On your back, elbow bent, fist by your shoulder."
                     />
                   )}
                   {(sessionPhase === "live" || sessionPhase === "complete") && (
@@ -319,16 +287,11 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">
-                          {counts.attempts} let go too soon
+                          {counts.attempts} not fully straight
                         </p>
                       )}
                     </div>
@@ -358,14 +321,12 @@ export function Inner() {
                 side-on to the patient.
               </li>
               <li>
-                Shoulder, hip and the raised hand in frame.
+                Shoulder, elbow and the raised hand in frame.
               </li>
               <li>
-                Calibration: arm up, shoulder relaxed; then punch up and hold
-                — that sets your personal line (
-                {Math.round(LINES.share * 100)}% of it). Live: punch past the
-                line, hold {HOLD_SEC} s, let down — one rep. The movement is
-                small; keep the camera still.
+                Calibration: elbow bent, fist by the shoulder; then punch
+                straight up and hold. Live: elbow bent, punched straight, bent
+                again is one rep. Only the raised arm is read.
               </li>
               <li>Target: {TARGET_REPS} reps.</li>
             </ul>

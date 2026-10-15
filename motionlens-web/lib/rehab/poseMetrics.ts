@@ -964,14 +964,16 @@ export function computeWristFlexExtDeg(keypoints: Keypoint[], side: "left" | "ri
 
 /** Pronation / supination, from the front with the forearm pointing at
  *  the camera (elbow bent 90°, tucked): the hand is read like a clock
- *  hand — the pinky → thumb line's angle from straight UP, SIGNED.
- *  0 = thumb up (neutral); + = thumb turned OUT, away from the body
- *  (supination, palm up, ~+90); − = thumb turned IN (pronation, palm
- *  down, ~−90). "Out" comes from the shoulders, so either arm works.
- *  Approximate — thumb and pinky are small points. Null when the thumb,
- *  pinky or either shoulder is not seen. */
+ *  hand — the pinky → index line's angle from straight UP, SIGNED.
+ *  0 = thumb up (neutral, index above pinky); + = index side turned OUT,
+ *  away from the body (supination, palm up, ~+90); − = turned IN
+ *  (pronation, palm down, ~−90). "Out" comes from the shoulders, so
+ *  either arm works. The index, not the thumb: palm down, the thumb
+ *  tucks under the hand and drops out of view, while the index and
+ *  pinky stay on the two edges of the hand. Approximate. Null when the
+ *  index, pinky or either shoulder is not seen. */
 export function computeForearmRotationDialDeg(keypoints: Keypoint[], side: "left" | "right"): number | null {
-  const T = keypoints[side === "left" ? LM.LEFT_THUMB : LM.RIGHT_THUMB];
+  const T = keypoints[side === "left" ? LM.LEFT_INDEX : LM.RIGHT_INDEX];
   const P = keypoints[side === "left" ? LM.LEFT_PINKY : LM.RIGHT_PINKY];
   const own = keypoints[side === "left" ? LM.LEFT_SHOULDER : LM.RIGHT_SHOULDER];
   const oth = keypoints[side === "left" ? LM.RIGHT_SHOULDER : LM.LEFT_SHOULDER];
@@ -1065,23 +1067,24 @@ export function computeForearmInwardPct(keypoints: Keypoint[], side: "left" | "r
   return (((w.x - e.x) * inward) / sh) * 100;
 }
 
-/** Supine serratus punch, side-on: the wrist's height above the hip
- *  line, as a percentage of the trunk (shoulder → hip), from the side the
- *  camera sees more clearly. The arm points at the ceiling; punching
- *  (the shoulder blade lifting off the floor) raises it a few points.
- *  Null when no side has the shoulder, hip and wrist seen. */
-export function computePunchReachPct(keypoints: Keypoint[]): number | null {
+/** Serratus punch, supine side-on: elbow interior angle (shoulder–elbow–
+ *  wrist) of the raised arm, ~80–100° with the fist at the shoulder and
+ *  ~160–180° punched straight up. Only arms whose wrist is above the
+ *  shoulder (toward the ceiling) count, so the arm resting on the floor
+ *  is never read; of those, the one seen more clearly. Null when no
+ *  raised arm is seen. */
+export function computePunchElbowDeg(keypoints: Keypoint[]): number | null {
   let best: { v: number; score: number } | null = null;
   for (const side of ["left", "right"] as const) {
     const s = keypoints[side === "left" ? LM.LEFT_SHOULDER : LM.RIGHT_SHOULDER];
-    const h = keypoints[side === "left" ? LM.LEFT_HIP : LM.RIGHT_HIP];
+    const e = keypoints[side === "left" ? LM.LEFT_ELBOW : LM.RIGHT_ELBOW];
     const w = keypoints[side === "left" ? LM.LEFT_WRIST : LM.RIGHT_WRIST];
-    if ([s, h, w].some((k) => !k || (k.score ?? 0) < VIS_THRESHOLD)) continue;
-    const torso = Math.hypot(s.x - h.x, s.y - h.y);
-    if (torso < 1) continue;
-    // Image y grows downward: a wrist above the hip has the smaller y.
-    const v = ((h.y - w.y) / torso) * 100;
-    const score = Math.min(s.score ?? 0, h.score ?? 0, w.score ?? 0);
+    if ([s, e, w].some((k) => !k || (k.score ?? 0) < VIS_THRESHOLD)) continue;
+    // Image y grows downward: a raised wrist has the smaller y.
+    if (w.y >= s.y) continue;
+    const v = computeElbowInteriorDeg(keypoints, side);
+    if (v === null) continue;
+    const score = Math.min(s.score ?? 0, e.score ?? 0, w.score ?? 0);
     if (!best || score > best.score) best = { v, score };
   }
   return best ? best.v : null;

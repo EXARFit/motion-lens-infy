@@ -47,7 +47,7 @@ import {
   computeKneeStrideRatio,
   computeHipMidY,
   computeForearmInwardPct,
-  computePunchReachPct,
+  computePunchElbowDeg,
   computeWristReachPct,
   computePelvicTiltDeg,
   computeShoulderWidth,
@@ -154,8 +154,8 @@ export function readCalibSignal(
       return sided((sd) => computeForearmFromDownDeg(kp, sd));
     case "wrist_reach":
       return computeWristReachPct(kp);
-    case "punch_reach":
-      return computePunchReachPct(kp);
+    case "punch_elbow":
+      return computePunchElbowDeg(kp);
     case "forearm_inward":
       return sided((sd) => computeForearmInwardPct(kp, sd));
     case "hip_mid_y_norm": {

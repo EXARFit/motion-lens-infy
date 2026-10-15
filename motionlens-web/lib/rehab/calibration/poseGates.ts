@@ -552,24 +552,28 @@ const rollerExtension: Gate = (kp, holdId) => {
 // ── Median nerve slider ────────────────────────────────────────
 //
 // Slider, not tensioner: with the elbow straight (range hold) the head
-// must tilt TOWARD the arm by MEDIAN_TOWARD_MIN.
+// must not be tilted AWAY from the arm by MEDIAN_TOWARD_MIN or more. A
+// level head, or ears not seen (the raised arm often hides the near
+// ear), passes — demanding a measured tilt toward the arm blocked
+// patients doing it right.
 export const MEDIAN_TOWARD_MIN = 5;
 
 const medianSlider: Gate = (kp, holdId, side) => {
   if (holdId !== "range" || side === null) return NONE;
   const t = computeHeadTiltTowardDeg(kp as unknown as Parameters<typeof computeHeadTiltTowardDeg>[0], side);
   if (t === null) return NONE;
-  const debug = `head tilt toward arm ${t.toFixed(0)}° (min ${MEDIAN_TOWARD_MIN})`;
-  if (t < MEDIAN_TOWARD_MIN) return { block: "Tilt your head TOWARD the arm", debug };
+  const debug = `head tilt toward arm ${t.toFixed(0)}° (blocked at ≤ −${MEDIAN_TOWARD_MIN})`;
+  if (t <= -MEDIAN_TOWARD_MIN) return { block: "Tilt your head TOWARD the arm", debug };
   return { block: null, debug };
 };
 
 // ── Ulnar nerve tensioner ──────────────────────────────────────
 //
-// Range hold = the mask: the hand at the face (within ULNAR_FACE_MAX
-// shoulder widths of the same-side eye) and the head tilted AWAY from
-// the arm by ULNAR_AWAY_MIN — the tensioner. The head part is skipped
-// when the ears are hidden (the hand can cover one).
+// Range hold = the mask. Blocks only on clear evidence: the hand seen
+// more than ULNAR_FACE_MAX shoulder widths from the same-side eye, or
+// the head tilted TOWARD the arm by ULNAR_AWAY_MIN or more (the slider).
+// A level head, or a hand / face / ears not seen (the hand covers the
+// eye and often an ear), passes — the same rules as the live page.
 export const ULNAR_FACE_MAX = 0.5;
 export const ULNAR_AWAY_MIN = 5;
 
@@ -578,9 +582,9 @@ const ulnarTensioner: Gate = (kp, holdId, side) => {
   const k = kp as unknown as Parameters<typeof computeHandToFaceRatio>[0];
   const face = computeHandToFaceRatio(k, side);
   const tilt = computeHeadTiltTowardDeg(k, side);
-  const debug = `hand-face ${face === null ? "–" : face.toFixed(2)} (max ${ULNAR_FACE_MAX}) · head toward arm ${tilt === null ? "–" : tilt.toFixed(0)}° (need ≤ −${ULNAR_AWAY_MIN})`;
+  const debug = `hand-face ${face === null ? "–" : face.toFixed(2)} (max ${ULNAR_FACE_MAX}) · head toward arm ${tilt === null ? "–" : tilt.toFixed(0)}° (blocked at ≥ ${ULNAR_AWAY_MIN})`;
   if (face !== null && face > ULNAR_FACE_MAX) return { block: "Hand over your eye like a mask", debug };
-  if (tilt !== null && tilt > -ULNAR_AWAY_MIN) return { block: "Tilt your head AWAY from the arm", debug };
+  if (tilt !== null && tilt >= ULNAR_AWAY_MIN) return { block: "Tilt your head AWAY from the arm", debug };
   return { block: null, debug };
 };
 

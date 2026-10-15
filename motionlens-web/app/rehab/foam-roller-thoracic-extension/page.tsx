@@ -49,6 +49,7 @@ import type { Keypoint } from "@tensorflow-models/pose-detection";
 import type { LiveKeypoint } from "@/hooks/usePoseDetectionLive";
 import { elapsedSecondsSince } from "@/lib/rehab/sessionHelpers";
 import { REHAB_EXERCISE_IMAGES } from "@/lib/rehab/exerciseImages";
+import { RepSegmentsBar } from "@/components/rehab/RepSegmentsBar";
 
 const SLUG = "foam-roller-thoracic-extension";
 const TITLE = "Thoracic Extension over Foam Roller";
@@ -232,7 +233,6 @@ export function Inner() {
   }, [phase]);
 
   const image = REHAB_EXERCISE_IMAGES[SLUG];
-  const holdPct = Math.min(100, (held / HOLD_SEC) * 100);
   const holdHint = fault === "hips"
     ? "Keep your hips on the floor"
     : fault === "neck"
@@ -336,12 +336,7 @@ export function Inner() {
                         {counts.reps}
                         <span className="text-lg text-muted"> / {TARGET_REPS}</span>
                       </p>
-                      <div className="mt-4 h-3 overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-accent transition-[width] duration-200"
-                          style={{ width: `${holdPct}%` }}
-                        />
-                      </div>
+                      <RepSegmentsBar reps={counts.reps} target={TARGET_REPS} />
                       <p className="mt-2 text-sm font-medium">{holdHint}</p>
                       {counts.attempts > 0 && (
                         <p className="tabular mt-3 text-xs text-muted">
