@@ -144,6 +144,12 @@ export function ChairStand30sReport({ patientName, patient, result, interpretati
               </tbody>
             </table>
           </div>
+          {result.rep_count > result.reps.length && (
+            <p className="text-xs text-muted">
+              +1 stand in progress when the 30 s ran out, counted per CDC
+              STEADI. It has no duration, so it is not in this table.
+            </p>
+          )}
 
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">

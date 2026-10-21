@@ -177,6 +177,20 @@ export function stepRepDetector(
   return { completedRep: false, state: s.current };
 }
 
+/** A rep closes on the sit, so a stand still open when the 30 s
+ *  timer runs out is not in the reps list. CDC STEADI counts it: a
+ *  full stand, or one more than halfway up at 30 s. `hipMidY` is the
+ *  last reading before the timer ran out. */
+export function standOpenAtTimeout(
+  s: RepDetectorState,
+  hipMidY: number | null,
+): boolean {
+  if (s.current === "standing") return true;
+  if (hipMidY === null || s.baselineY === null) return false;
+  const ref = s.legLengthPx ?? 200;
+  return hipMidY < s.baselineY - (ref * STAND_DELTA_FRAC) / 2;
+}
+
 // ─── Aggregates ─────────────────────────────────────────────────
 
 export interface RepMetrics {
@@ -251,6 +265,9 @@ export function summarizeTrial(
   lastRepScreenshotDataUrl: string | null,
   patientAge: number | null,
   patientSex: Sex | "other" | null,
+  /** The stand open at the 30 s mark (standOpenAtTimeout). Counted,
+   *  but not in the per-rep lists: it has no duration. */
+  finalStandCredited = false,
 ): ChairStand30sResult {
   const trialDuration = Math.max(0, (endedAtMs - startedAtMs) / 1000);
   const repDurations = reps.map((r) => r.duration_seconds);
@@ -258,7 +275,7 @@ export function summarizeTrial(
     repDurations.length === 0 ? 0 : repDurations.reduce((a, b) => a + b, 0) / repDurations.length;
 
   const norm = getChairStand30sNorm(patientAge, patientSex);
-  const repCount = reps.length;
+  const repCount = reps.length + (finalStandCredited ? 1 : 0);
   const classification: Classification =
     repCount >= norm.belowAverageThreshold ? "above_norm" : "below_norm";
 

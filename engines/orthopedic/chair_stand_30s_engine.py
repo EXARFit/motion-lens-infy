@@ -388,11 +388,14 @@ def analyze_chair_stand_30s(
     deepest_knee_overall = 180.0
     deepest_knee_frame = first_valid_idx
     last_valid_frame = first_valid_idx
+    last_hip_y: Optional[float] = None
+    reached_timeout = False
     completed_within_timer = True
 
     for i in range(first_valid_idx, n):
         elapsed_frames = i - first_valid_idx
         if elapsed_frames >= timeout_frames:
+            reached_timeout = True
             # 30 s window elapsed — STOP. Any partial rep beyond this
             # point doesn't count (PDF Test C3 spec).
             break
@@ -401,6 +404,7 @@ def analyze_chair_stand_30s(
         if hip_y is None:
             continue
         last_valid_frame = i
+        last_hip_y = hip_y
         t_ms = (elapsed_frames / fps) * 1000.0
 
         knee = _compute_knee_angle(ts, i)
@@ -440,7 +444,16 @@ def analyze_chair_stand_30s(
     min_knee_angles = [r["min_knee_angle_deg"] for r in reps]
     depth_sd = _depth_sd_deg(min_knee_angles)
 
-    rep_count = len(reps)
+    # A rep closes on the sit, so a stand still open when the 30 s
+    # timer runs out is not in `reps`. CDC STEADI counts it: a full
+    # stand, or one more than halfway up at 30 s. Credit it in the
+    # count only (it has no duration, so the per-rep lists skip it).
+    halfway_y = baseline_y - leg_length_px * _STAND_DELTA_FRAC / 2
+    final_stand_credited = reached_timeout and (
+        current_state == "standing"
+        or (last_hip_y is not None and last_hip_y < halfway_y)
+    )
+    rep_count = len(reps) + (1 if final_stand_credited else 0)
 
     # Norm lookup.
     norm = _get_chair_stand_norm(patient_age, patient_sex)
