@@ -47,6 +47,7 @@ import {
   computeLegLengthPx,
   newRepDetector,
   stepRepDetector,
+  standOpenAtTimeout,
   summarizeTrial,
   type ChairStand30sResult,
   type FrameSample,
@@ -146,6 +147,13 @@ export function ChairStand30sCapture() {
       }
     }
     const demo = snapshotDemographics();
+    // Only when the 30 s timer ran out, not when the operator stopped.
+    let lastHipY: number | null = null;
+    for (let i = rec.samples.length - 1; i >= 0 && lastHipY === null; i--) {
+      lastHipY = rec.samples[i].hip_mid_y;
+    }
+    const finalStandCredited =
+      termination === "completed" && standOpenAtTimeout(rec.detector, lastHipY);
     const summary = summarizeTrial(
       rec.startedAt,
       Date.now(),
@@ -157,6 +165,7 @@ export function ChairStand30sCapture() {
       rec.lastRepScreenshot,
       demo.age,
       demo.sex,
+      finalStandCredited,
     );
     setResult(summary);
     recordingRef.current = null;
