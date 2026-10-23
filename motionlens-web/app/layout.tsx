@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   title: "MotionLens — AI-Powered Motion Analysis",
   description:
     "Extract clinical-grade biomechanics from any video. Markerless gait and joint analysis powered by browser-based pose estimation.",
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 // Runs before React hydrates — sets data-theme on <html> from
