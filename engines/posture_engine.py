@@ -298,6 +298,17 @@ def _extract_posture_keypoints(
     to do. This is what the saved-report viewer + KeypointDTO
     serialiser expect (the ReportCreatePayload schema declares
     KeypointDTO[] non-nullable per element)."""
+    # mediapipe 1.0 aborts the whole process (C++ "Check failed:
+    # 1 == ChannelSize()") building the segmentation mask when the
+    # image width isn't a multiple of 4 — WhatsApp photos are often
+    # 591 px wide. Pad the right edge by up to 3 px of edge colour,
+    # scale landmarks by the padded width and trim the mask back.
+    pad_w = (-rgb_array.shape[1]) % 4
+    if pad_w:
+        rgb_array = np.ascontiguousarray(
+            np.pad(rgb_array, ((0, 0), (0, pad_w), (0, 0)), mode="edge"),
+        )
+    detect_width = image_width + pad_w
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_array)
     landmarker = _get_landmarker()
     with _landmarker_lock:
@@ -327,6 +338,8 @@ def _extract_posture_keypoints(
             # each consumer.
             if mask.ndim == 3:
                 mask = mask[:, :, 0]
+            if pad_w:
+                mask = np.ascontiguousarray(mask[:, :image_width])
         except Exception:  # pragma: no cover — never fail a view on this
             log.warning("posture: segmentation mask unreadable", exc_info=True)
             mask = None
@@ -367,7 +380,7 @@ def _extract_posture_keypoints(
             out.append(_empty_kp(movenet_idx))
         else:
             out.append({
-                "x": float(lm.x) * image_width,
+                "x": float(lm.x) * detect_width,
                 "y": float(lm.y) * image_height,
                 "score": vis,
                 "name": _KP_NAMES_MOVENET[movenet_idx],
