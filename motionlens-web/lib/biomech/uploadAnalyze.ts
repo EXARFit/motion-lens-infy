@@ -114,8 +114,11 @@ export async function analyzeBiomechVideo(
   // same shared gait pose pipeline + _pose_rotation correction
   // already in place from the shoulder PRs, so portrait videos
   // and platform-specific cv2 behaviour are handled automatically.
-  if (bodyPart === "knee" && movement === "flexion_extension") {
-    return analyzeKneeBackend(file, "flexion_extension", side ?? "right", onProgress);
+  if (
+    bodyPart === "knee" &&
+    (movement === "flexion_extension" || movement === "supine_flexion_extension")
+  ) {
+    return analyzeKneeBackend(file, movement, side ?? "right", onProgress);
   }
 
   // ── Hip flexion + extension + rotation → backend MediaPipe ──

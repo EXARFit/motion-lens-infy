@@ -149,6 +149,17 @@ export const MOVEMENT_INSTRUCTIONS: Record<Key, string[]> = {
     "Avoid these compensations: keep the thigh roughly stationary (only the lower leg should move), and don't lean your trunk forward or backward to assist the bend.",
   ],
 
+  // Supine heel slide: same two peaks, patient lying down.
+  "knee.supine_flexion_extension": [
+    "Lie on your back on a bed or mat. Place the camera at bed height, about 2–3 metres away, so it sees the SIDE of the leg you're testing. Your whole body from shoulders to feet should be in frame, test leg nearest the camera.",
+    "Start with both legs straight and relaxed, arms on the chest or by your side. Hold still for ~2 seconds — this captures the EXTENSION peak.",
+    "Slowly slide the heel along the bed toward your buttock, bending the knee as far as comfortable. Keep the heel touching the bed.",
+    "Hold the most-bent position for ~2 seconds — this captures the FLEXION peak.",
+    "Slowly slide the heel back until the leg is straight again.",
+    "Click Show Analysis. The report shows separate Flexion and Extension peaks with normal ranges and screenshots of both moments.",
+    "Avoid these compensations: keep the heel on the bed (slide it, don't lift the foot), and keep the hips and lower back flat on the bed.",
+  ],
+
   // ── Hip ──────────────────────────────────────────────────────
   "hip.flexion": [
     "Stand about 6 feet (2 metres) from the camera, turned so the camera sees your side. Hold a wall or chair lightly for balance if needed.",

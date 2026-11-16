@@ -257,6 +257,8 @@ export interface BiomechCompensationDTO {
     | "trunk_rotation"
     | "thigh_movement"
     | "knee_trunk_lean"
+    | "knee_heel_lift"
+    | "knee_hip_lift"
     | "pelvic_tilt_posterior"
     | "pelvic_tilt_anterior"
     | "hip_trunk_lean"

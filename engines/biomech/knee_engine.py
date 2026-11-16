@@ -358,6 +358,76 @@ def _track_knee_compensations(
 
 
 # ─── Main entry point ───────────────────────────────────────────
+# Supine heel slide (patient on the back, side-on). The thigh MUST
+# move and the trunk stays flat, so the seated checks above don't
+# apply. Instead flag the two usual cheats, both as a share of the
+# baseline hip→ankle leg length (image y grows downward):
+#   • heel lift — the heel comes off the bed instead of sliding
+#   • hip lift  — the pelvis lifts off the bed
+_SUPINE_HEEL_LIFT_FRAC = 0.15
+_SUPINE_HIP_LIFT_FRAC = 0.08
+
+
+def _track_supine_knee_compensations(
+    side_hx, side_hy, side_hv,    # test-side hip
+    side_ax, side_ay, side_av,    # test-side ankle
+    n: int,
+) -> list[dict]:
+    hip_samples: list[float] = []
+    ankle_samples: list[float] = []
+    leg_samples: list[float] = []
+    base_hip_y: Optional[float] = None
+    base_ankle_y: Optional[float] = None
+    leg_len: Optional[float] = None
+    heel_peak = 0.0
+    hip_peak = 0.0
+
+    for i in range(n):
+        if (side_hv[i] < _KNEE_VIS_THRESHOLD
+                or side_av[i] < _KNEE_VIS_THRESHOLD):
+            continue
+        hip_y = float(side_hy[i])
+        ankle_y = float(side_ay[i])
+        if base_hip_y is None:
+            hip_samples.append(hip_y)
+            ankle_samples.append(ankle_y)
+            leg_samples.append(math.hypot(
+                float(side_ax[i]) - float(side_hx[i]), ankle_y - hip_y,
+            ))
+            if len(hip_samples) == _KNEE_COMP_BASELINE_FRAME_COUNT:
+                base_hip_y = sum(hip_samples) / len(hip_samples)
+                base_ankle_y = sum(ankle_samples) / len(ankle_samples)
+                leg_len = sum(leg_samples) / len(leg_samples)
+            continue
+        if not leg_len or leg_len < 1e-3:
+            continue
+        heel_peak = max(heel_peak, (base_ankle_y - ankle_y) / leg_len)
+        hip_peak = max(hip_peak, (base_hip_y - hip_y) / leg_len)
+
+    return [
+        {
+            "type": "knee_heel_lift",
+            "label": "Heel Lift",
+            "severity": "medium",
+            "flagged": heel_peak > _SUPINE_HEEL_LIFT_FRAC,
+            "details": (
+                f"Peak heel lift {heel_peak * 100:.0f}% of leg length "
+                f"(threshold {_SUPINE_HEEL_LIFT_FRAC * 100:.0f}%)"
+            ),
+        },
+        {
+            "type": "knee_hip_lift",
+            "label": "Hip Lift",
+            "severity": "medium",
+            "flagged": hip_peak > _SUPINE_HIP_LIFT_FRAC,
+            "details": (
+                f"Peak hip lift {hip_peak * 100:.0f}% of leg length "
+                f"(threshold {_SUPINE_HIP_LIFT_FRAC * 100:.0f}%)"
+            ),
+        },
+    ]
+
+
 def analyze_knee(
     video_path: str,
     pose_options,
@@ -388,7 +458,7 @@ def analyze_knee(
                     frames. The endpoint maps this to a
                     "poor_visibility" / "Requested side" HTTP 400.
     """
-    if movement != "flexion_extension":
+    if movement not in ("flexion_extension", "supine_flexion_extension"):
         raise ValueError(f"Unsupported knee movement: {movement!r}")
     if side not in ("left", "right"):
         raise ValueError(f"Unsupported side: {side!r}")
@@ -523,20 +593,25 @@ def analyze_knee(
         if kf:
             key_frames.append(kf)
 
-    compensations = _track_knee_compensations(
-        side,
-        lhx, lhy, lhv,
-        rhx, rhy, rhv,
-        lsx, lsy, lsv,
-        rsx, rsy, rsv,
-        hx, hy, vh,
-        kx, ky, vk,
-        n,
-    )
+    if movement == "supine_flexion_extension":
+        compensations = _track_supine_knee_compensations(
+            hx, hy, vh, ax, ay, va, n,
+        )
+    else:
+        compensations = _track_knee_compensations(
+            side,
+            lhx, lhy, lhv,
+            rhx, rhy, rhv,
+            lsx, lsy, lsv,
+            rsx, rsy, rsv,
+            hx, hy, vh,
+            kx, ky, vk,
+            n,
+        )
 
     return {
         "body_part": "knee",
-        "movement": "flexion_extension",
+        "movement": movement,
         "side": side,
         # `peak_angle` is the primary direction's signed value;
         # for knee, flexion magnitudes are already non-negative.

@@ -364,6 +364,18 @@ export function ApiUploadAssessment({
             </ul>
           </div>
         )}
+        {/* Compensation warning — supine knee heel slide. */}
+        {bodyPart === "knee" && movementId === "supine_flexion_extension" && (
+          <div className="mt-4 max-w-xl rounded-md border border-warning/40 bg-warning/5 px-4 py-3">
+            <p className="text-xs font-semibold text-warning">
+              ⚠️ Avoid these common compensations:
+            </p>
+            <ul className="mt-2 space-y-1 text-xs text-foreground">
+              <li>• Keep the heel on the bed — slide it, don&apos;t lift the foot</li>
+              <li>• Keep the hips and lower back flat on the bed</li>
+            </ul>
+          </div>
+        )}
         {/* Compensation warning — hip flexion (standing, lateral). */}
         {bodyPart === "hip" && movementId === "flexion" && (
           <div className="mt-4 max-w-xl rounded-md border border-warning/40 bg-warning/5 px-4 py-3">
