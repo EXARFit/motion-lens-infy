@@ -5254,12 +5254,12 @@ async def analyze_knee(
     fixed_path_cleanup: str | None = None
     try:
         movement = movement_type.lower().strip()
-        if movement != "flexion_extension":
+        if movement not in ("flexion_extension", "supine_flexion_extension"):
             return BiomechResponse(
                 success=False,
                 error=(
                     f"Unknown knee movement '{movement_type}'. "
-                    f"Allowed: 'flexion_extension'."
+                    f"Allowed: 'flexion_extension', 'supine_flexion_extension'."
                 ),
             )
         side_lc = side.lower().strip()

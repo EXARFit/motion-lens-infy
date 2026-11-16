@@ -56,7 +56,10 @@ import {
   HipExtensionCompensationTracker,
   HipRotationCompensationTracker,
 } from "@/lib/biomech/hip-live";
-import { KneeFlexExtCompensationTracker } from "@/lib/biomech/knee-live";
+import {
+  KneeFlexExtCompensationTracker,
+  SupineKneeCompensationTracker,
+} from "@/lib/biomech/knee-live";
 import {
   AnkleFlexionCompensationTracker,
   AnkleExtensionCompensationTracker,
@@ -375,8 +378,14 @@ export function LiveAssessment({
     !!merged && bodyPart === "shoulder" && movementId === "abduction_adduction";
   const isMergedShoulderFlexExt =
     !!merged && bodyPart === "shoulder" && movementId === "flexion_extension";
+  // Supine heel slide shares the merged knee path (same angle, same
+  // min/max peaks); only its compensation tracker and framing hints
+  // differ.
+  const isSupineKneeFE = bodyPart === "knee" && movementId === "supine_flexion_extension";
   const isMergedKneeFE =
-    !!merged && bodyPart === "knee" && movementId === "flexion_extension";
+    !!merged &&
+    bodyPart === "knee" &&
+    (movementId === "flexion_extension" || isSupineKneeFE);
   const isMergedNeckFE =
     !!merged && bodyPart === "neck" && movementId === "flexion_extension";
   const isMergedNeckLateral =
@@ -500,7 +509,9 @@ export function LiveAssessment({
   // Knee + hip + ankle compensation trackers — lazy-init per the
   // same pattern. Only one is non-null per trial (only one exercise
   // active at a time across knee/hip/ankle).
-  const compKneeFETrackerRef = useRef<KneeFlexExtCompensationTracker | null>(null);
+  const compKneeFETrackerRef = useRef<
+    KneeFlexExtCompensationTracker | SupineKneeCompensationTracker | null
+  >(null);
   const compHipFlexionTrackerRef = useRef<HipFlexionCompensationTracker | null>(null);
   const compHipExtensionTrackerRef = useRef<HipExtensionCompensationTracker | null>(null);
   const compHipRotationTrackerRef = useRef<HipRotationCompensationTracker | null>(null);
@@ -606,13 +617,15 @@ export function LiveAssessment({
         }
       }
       if (visibleCore === 0) {
-        s.postureHint =
-          "Subject not in frame. Stand ~2 m (6 ft) back, facing the camera, full upper body visible.";
+        s.postureHint = isSupineKneeFE
+          ? "Subject not in frame. Lie on your back side-on to the camera, ~2-3 m away at bed height, whole body in frame."
+          : "Subject not in frame. Stand ~2 m (6 ft) back, facing the camera, full upper body visible.";
       } else if (visibleCore < core.length) {
         s.postureHint = `Step back to ~2 m so ${LIMB_FRAMING_TEXT[bodyPart]} stays fully in frame — you're too close or partly out of shot.`;
       } else if (data.status !== "good") {
-        s.postureHint =
-          "Subject framed but the reading is unstable — improve lighting and face the camera squarely.";
+        s.postureHint = isSupineKneeFE
+          ? "Subject framed but the reading is unstable — improve lighting and keep the test leg nearest the camera."
+          : "Subject framed but the reading is unstable — improve lighting and face the camera squarely.";
       } else {
         s.postureHint = null;
       }
@@ -870,7 +883,9 @@ export function LiveAssessment({
       }));
       const sideOrRight = side ?? "right";
       if (!compKneeFETrackerRef.current) {
-        compKneeFETrackerRef.current = new KneeFlexExtCompensationTracker(sideOrRight);
+        compKneeFETrackerRef.current = isSupineKneeFE
+          ? new SupineKneeCompensationTracker(sideOrRight)
+          : new KneeFlexExtCompensationTracker(sideOrRight);
       }
       compKneeFETrackerRef.current.feed(kpsForComp);
       s.currentCompensations = compKneeFETrackerRef.current.currentFlags();
@@ -1168,6 +1183,7 @@ export function LiveAssessment({
     isMergedShoulderAbAd,
     isMergedShoulderFlexExt,
     isMergedKneeFE,
+    isSupineKneeFE,
     isMergedNeckFE,
     isMergedNeckLateral,
     isMergedHipRotation,
@@ -1491,7 +1507,9 @@ export function LiveAssessment({
     ? "Patient: face the camera straight ahead, head still — the baseline step starts right after."
     : isShoulderRotation
       ? "Patient: tuck the elbow at your side, forearm pointing forward — the baseline step starts right after."
-      : "Stand ~2 m (6 ft) from the camera with the whole limb in frame.";
+      : isSupineKneeFE
+        ? "Lie on your back, side-on to the camera, test leg nearest it, legs straight."
+        : "Stand ~2 m (6 ft) from the camera with the whole limb in frame.";
 
   // ─── Pre-fullscreen intro — movement context + ONE click ───────
   const introView = (

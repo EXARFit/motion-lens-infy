@@ -5,7 +5,11 @@
 import type { Keypoint } from "@tensorflow-models/pose-detection";
 import { LM } from "@/lib/pose/landmarks";
 
-export type KneeMovementId = "flexion" | "extension" | "flexion_extension";
+export type KneeMovementId =
+  | "flexion"
+  | "extension"
+  | "flexion_extension"
+  | "supine_flexion_extension";
 
 export interface KneeMovement {
   id: string;
@@ -72,6 +76,23 @@ export const KNEE_MOVEMENTS: KneeMovement[] = [
     // measurement uncertainty.
     secondaryTarget: [0, 10],
     imageUrl: "/images/biomech/knee/knee_flexion_extension.png",
+  },
+  // Supine heel slide: patient on the back, side-on to the camera,
+  // slides the heel toward the buttock (flexion) and back out straight
+  // (extension). Same hip-knee-ankle angle as the seated test; its own
+  // compensation checks (heel lift, hip lift) because here the thigh
+  // has to move.
+  {
+    id: "supine_flexion_extension",
+    label: "Supine Flexion + Extension (Heel Slide)",
+    description:
+      "Lying on the back, slide the heel toward the buttock (peak flexion), then slide it back until the leg is straight (peak extension). One session captures both ends of the ROM.",
+    target: [125, 145],
+    merged: true,
+    primaryLabel: "Flexion",
+    secondaryLabel: "Extension",
+    secondaryTarget: [0, 10],
+    imageUrl: "/images/biomech/knee/knee_supine_flexion_extension.png",
   },
   // Legacy single-direction entries — kept so saved reports referring
   // to "flexion" or "extension" alone still resolve a label/target

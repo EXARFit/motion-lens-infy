@@ -5,7 +5,11 @@
 import type { LiveKeypoint as Keypoint } from "@/hooks/usePoseDetectionLive";
 import { LM_LIVE as LM } from "@/lib/pose/landmarks-live";
 
-export type KneeMovementId = "flexion" | "extension" | "flexion_extension";
+export type KneeMovementId =
+  | "flexion"
+  | "extension"
+  | "flexion_extension"
+  | "supine_flexion_extension";
 
 export interface KneeMovement {
   id: string;
@@ -72,6 +76,23 @@ export const KNEE_MOVEMENTS: KneeMovement[] = [
     // measurement uncertainty.
     secondaryTarget: [0, 10],
     imageUrl: "/images/biomech/knee/knee_flexion_extension.png",
+  },
+  // Supine heel slide: patient on the back, side-on to the camera,
+  // slides the heel toward the buttock (flexion) and back out straight
+  // (extension). Same hip-knee-ankle angle as the seated test; its own
+  // compensation checks (heel lift, hip lift) because here the thigh
+  // has to move.
+  {
+    id: "supine_flexion_extension",
+    label: "Supine Flexion + Extension (Heel Slide)",
+    description:
+      "Lying on the back, slide the heel toward the buttock (peak flexion), then slide it back until the leg is straight (peak extension). One session captures both ends of the ROM.",
+    target: [125, 145],
+    merged: true,
+    primaryLabel: "Flexion",
+    secondaryLabel: "Extension",
+    secondaryTarget: [0, 10],
+    imageUrl: "/images/biomech/knee/knee_supine_flexion_extension.png",
   },
   // Legacy single-direction entries — kept so saved reports referring
   // to "flexion" or "extension" alone still resolve a label/target
@@ -141,7 +162,7 @@ export function computeKneeAngle(
 export type CompensationSeverity = "high" | "medium" | "low";
 
 export interface Compensation {
-  type: "thigh_movement" | "knee_trunk_lean";
+  type: "thigh_movement" | "knee_trunk_lean" | "knee_heel_lift" | "knee_hip_lift";
   label: string;
   severity: CompensationSeverity;
   flagged: boolean;
@@ -293,6 +314,97 @@ export class KneeFlexExtCompensationTracker {
         severity: "medium",
         flagged: this.trunkFlagged,
         details: `Peak trunk-angle deviation ${this.trunkPeakDev.toFixed(1)}° from baseline (threshold ${KNEE_TRUNK_LEAN_THRESHOLD_DEG}°)`,
+      },
+    ];
+  }
+}
+
+// ─── Supine heel slide compensations ─────────────────────────────
+// Patient on the back, side-on. The thigh has to move and the trunk
+// stays flat, so the seated checks don't apply. Flag the two usual
+// cheats instead, as a share of the baseline hip→ankle leg length
+// (image y grows downward). Mirrors _track_supine_knee_compensations
+// in engines/biomech/knee_engine.py.
+const SUPINE_HEEL_LIFT_FRAC = 0.15;
+const SUPINE_HIP_LIFT_FRAC = 0.08;
+
+export class SupineKneeCompensationTracker {
+  private readonly side: "left" | "right";
+  private hipSamples: number[] = [];
+  private ankleSamples: number[] = [];
+  private legSamples: number[] = [];
+  private baseHipY: number | null = null;
+  private baseAnkleY: number | null = null;
+  private legLen: number | null = null;
+  private heelPeak = 0;
+  private hipPeak = 0;
+  private currentHeel = false;
+  private currentHip = false;
+
+  constructor(side: "left" | "right") {
+    this.side = side;
+  }
+
+  feed(keypoints: Keypoint[]): void {
+    this.currentHeel = false;
+    this.currentHip = false;
+    const idx = SIDE_INDICES[this.side];
+    const hip = keypoints[idx.hip];
+    const ankle = keypoints[idx.ankle];
+    if (!hip || !ankle) return;
+    if ((hip.score ?? 0) < VIS_THRESHOLD || (ankle.score ?? 0) < VIS_THRESHOLD) return;
+    if (this.baseHipY === null) {
+      this.hipSamples.push(hip.y);
+      this.ankleSamples.push(ankle.y);
+      this.legSamples.push(Math.hypot(ankle.x - hip.x, ankle.y - hip.y));
+      if (this.hipSamples.length === KNEE_COMPENSATION_BASELINE_FRAME_COUNT) {
+        this.baseHipY = kneeCompMean(this.hipSamples);
+        this.baseAnkleY = kneeCompMean(this.ankleSamples);
+        this.legLen = kneeCompMean(this.legSamples);
+      }
+      return;
+    }
+    if (!this.legLen || this.legLen < 1e-3 || this.baseAnkleY === null) return;
+    const heel = (this.baseAnkleY - ankle.y) / this.legLen;
+    const hipLift = (this.baseHipY - hip.y) / this.legLen;
+    if (heel > this.heelPeak) this.heelPeak = heel;
+    if (hipLift > this.hipPeak) this.hipPeak = hipLift;
+    this.currentHeel = heel > SUPINE_HEEL_LIFT_FRAC;
+    this.currentHip = hipLift > SUPINE_HIP_LIFT_FRAC;
+  }
+
+  // Same surface as KneeFlexExtCompensationTracker so the live page
+  // can hold either.
+  markPrimaryPeak(): void {}
+
+  markSecondaryPeak(): void {}
+
+  currentFlags(): Compensation[] {
+    const out: Compensation[] = [];
+    if (this.currentHeel) {
+      out.push({ type: "knee_heel_lift", label: "Heel Lift", severity: "medium", flagged: true });
+    }
+    if (this.currentHip) {
+      out.push({ type: "knee_hip_lift", label: "Hip Lift", severity: "medium", flagged: true });
+    }
+    return out;
+  }
+
+  finish(): Compensation[] {
+    return [
+      {
+        type: "knee_heel_lift",
+        label: "Heel Lift",
+        severity: "medium",
+        flagged: this.heelPeak > SUPINE_HEEL_LIFT_FRAC,
+        details: `Peak heel lift ${(this.heelPeak * 100).toFixed(0)}% of leg length (threshold ${(SUPINE_HEEL_LIFT_FRAC * 100).toFixed(0)}%)`,
+      },
+      {
+        type: "knee_hip_lift",
+        label: "Hip Lift",
+        severity: "medium",
+        flagged: this.hipPeak > SUPINE_HIP_LIFT_FRAC,
+        details: `Peak hip lift ${(this.hipPeak * 100).toFixed(0)}% of leg length (threshold ${(SUPINE_HIP_LIFT_FRAC * 100).toFixed(0)}%)`,
       },
     ];
   }
