@@ -76,6 +76,11 @@ _KNEE_VIS_THRESHOLD = 0.4
 _KNEE_FLEXION_ANATOMICAL_MAX = 150.0
 _KNEE_HYPEREXTENSION_LIMIT   = -5.0
 
+# Held-peak window for upload mode: a peak must hold for about this
+# long (median over the window), with at least this many valid frames.
+_KNEE_PEAK_HOLD_SEC = 0.3
+_KNEE_PEAK_MIN_FRAMES = 3
+
 
 # ─── Math primitive ─────────────────────────────────────────────
 def _interior_knee_angle(
@@ -514,13 +519,16 @@ def analyze_knee(
             continue
         bent = 180.0 - interior
         # Anatomical sanity: drop frames where the computed bent
-        # angle is outside what a real knee can do. Clamp the
-        # accepted values to the anatomical ceiling so a single
-        # noise spike can't lock an implausible 175° "flexion".
+        # angle is outside what a real knee can do. Readings between
+        # the anatomical ceiling and ceiling + 15° are KEPT as measured
+        # (no clamp): clamping turned every clip with one such frame
+        # into exactly 150.0°, so different patients and positions
+        # reported identical flexion. The held peak below filters
+        # single-frame spikes; a held reading above the ceiling is
+        # flagged in the interpretation instead.
         if bent < _KNEE_HYPEREXTENSION_LIMIT or bent > _KNEE_FLEXION_ANATOMICAL_MAX + 15.0:
             angles.append(None)
             continue
-        bent = max(_KNEE_HYPEREXTENSION_LIMIT, min(_KNEE_FLEXION_ANATOMICAL_MAX, bent))
         angles.append(bent)
         valid_frames += 1
 
@@ -535,6 +543,12 @@ def analyze_knee(
     # Peak flexion = max bent amount (most bent).
     # Peak extension = min bent amount (residual flexion at the
     # straightest position; 0° means perfectly straight).
+    #
+    # Held peak: each frame's reading is the median of the valid
+    # frames within ±_KNEE_PEAK_HOLD_SEC/2 of it, so a pose spike of a
+    # frame or two can't become the peak — the angle has to hold.
+    # Same idea as the live mode's 5-frame hold.
+    half = max(1, int(round(fps * _KNEE_PEAK_HOLD_SEC / 2.0)))
     peak_flexion_mag: float = -math.inf
     peak_flexion_idx: int = -1
     peak_extension_mag: float = math.inf
@@ -542,11 +556,18 @@ def analyze_knee(
     for i, a in enumerate(angles):
         if a is None:
             continue
-        if a > peak_flexion_mag:
-            peak_flexion_mag = a
+        window = [
+            v for v in angles[max(0, i - half):i + half + 1]
+            if v is not None
+        ]
+        if len(window) < _KNEE_PEAK_MIN_FRAMES:
+            continue
+        held = float(np.median(window))
+        if held > peak_flexion_mag:
+            peak_flexion_mag = held
             peak_flexion_idx = i
-        if a < peak_extension_mag:
-            peak_extension_mag = a
+        if held < peak_extension_mag:
+            peak_extension_mag = held
             peak_extension_idx = i
 
     # Should be unreachable given the valid_frames check above,
@@ -573,6 +594,12 @@ def analyze_knee(
         f"target {s_lo:.0f}°–{s_hi:.0f}° — {s_status}."
     )
     interpretation = f"{interpretation_primary} {interpretation_secondary}"
+    if peak_flexion_mag > _KNEE_FLEXION_ANATOMICAL_MAX:
+        interpretation += (
+            f" Note: the flexion reading is above the usual knee maximum "
+            f"(~{_KNEE_FLEXION_ANATOMICAL_MAX:.0f}°) — check the camera "
+            f"setup (side-on, whole leg in frame) and re-record if needed."
+        )
 
     # Key frames: two peaks only (Flexion + Extension). Matches the
     # merged shoulder ab/ad layout the user picked — no neutral
